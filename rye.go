@@ -23,11 +23,6 @@ type Token struct {
 }
 type Symbol string
 
-var tokenLParen Token = Token{"(", TokenLParen}
-var tokenRParen Token = Token{"(", TokenRParen}
-
-func intToken(i int) Token    { return Token{i, TokenInt} }
-func symToken(s Symbol) Token { return Token{Symbol(s), TokenSymbol} }
 func Tokenize(program string) []Token {
 	program = strings.ReplaceAll(strings.ReplaceAll(program, "(", " ( "), ")", " ) ")
 	words := strings.Fields(program)
@@ -35,15 +30,15 @@ func Tokenize(program string) []Token {
 	for _, word := range words {
 		switch word {
 		case "(":
-			result = append(result, tokenLParen)
+			result = append(result, Token{"(", TokenLParen})
 		case ")":
-			result = append(result, tokenRParen)
+			result = append(result, Token{")", TokenRParen})
 		default:
 			i, err := strconv.Atoi(word)
 			if err != nil {
-				result = append(result, symToken(Symbol(word)))
+				result = append(result, Token{Symbol(word), TokenSymbol})
 			} else {
-				result = append(result, intToken(i))
+				result = append(result, Token{i, TokenInt})
 			}
 		}
 	}
@@ -55,7 +50,7 @@ type Object interface{}
 func ParseTokens(tokens generics.Queue[Token]) ([]Object, error) {
 	var result generics.List[Object]
 	token := tokens.Pop()
-	if token != tokenLParen {
+	if token.Type != TokenLParen {
 		return result, fmt.Errorf("expected ( but found %+v", token)
 	}
 	for len(tokens) != 0 {
