@@ -8,7 +8,6 @@ import (
 	"github.com/Racinettee/generics"
 )
 
-type TokenType byte
 type Symbol string
 type Object interface{}
 type Void struct{}
@@ -17,57 +16,58 @@ type Lambda struct {
 	args []Symbol
 	body []Object
 }
-type Token struct {
+type tokenType byte
+type token struct {
 	Symbol interface{}
-	Type   TokenType
+	Type   tokenType
 }
 
 const (
-	TokenInt TokenType = iota
-	TokenSymbol
-	TokenLParen
-	TokenRParen
+	tokenInt tokenType = iota
+	tokenSymbol
+	tokenLParen
+	tokenRParen
 )
 
-func Tokenize(program string) []Token {
+func tokenize(program string) []token {
 	words := strings.Fields(strings.ReplaceAll(strings.ReplaceAll(program, "(", " ( "), ")", " ) "))
-	var result []Token
+	var result []token
 	for _, word := range words {
 		switch word {
 		case "(":
-			result = append(result, Token{"(", TokenLParen})
+			result = append(result, token{"(", tokenLParen})
 		case ")":
-			result = append(result, Token{")", TokenRParen})
+			result = append(result, token{")", tokenRParen})
 		default:
 			if i, err := strconv.Atoi(word); err != nil {
-				result = append(result, Token{Symbol(word), TokenSymbol})
+				result = append(result, token{Symbol(word), tokenSymbol})
 			} else {
-				result = append(result, Token{i, TokenInt})
+				result = append(result, token{i, tokenInt})
 			}
 		}
 	}
 	return result
 }
 
-func ParseTokens(tokens *generics.Queue[Token]) ([]Object, error) {
+func parseTokens(tokens *generics.Queue[token]) ([]Object, error) {
 	var result generics.List[Object]
 	token := tokens.Pop()
-	if token.Type != TokenLParen {
+	if token.Type != tokenLParen {
 		return result, fmt.Errorf("expected ( but found %+v", token)
 	}
 	for len(*tokens) != 0 {
 		token = tokens.Front()
 		switch token.Type {
-		case TokenInt, TokenSymbol:
+		case tokenInt, tokenSymbol:
 			tokens.Pop()
 			result.Push(token.Symbol)
-		case TokenLParen:
-			subList, err := ParseTokens(tokens)
+		case tokenLParen:
+			subList, err := parseTokens(tokens)
 			if err != nil {
 				return result, err
 			}
 			result.Push(subList)
-		case TokenRParen:
+		case tokenRParen:
 			tokens.Pop()
 			return result, nil
 		}
@@ -75,8 +75,8 @@ func ParseTokens(tokens *generics.Queue[Token]) ([]Object, error) {
 	return result, nil
 }
 func Parse(program string) Object {
-	tokens := generics.Queue[Token](Tokenize(program))
-	object, err := ParseTokens(&tokens)
+	tokens := generics.Queue[token](tokenize(program))
+	object, err := parseTokens(&tokens)
 	if err != nil {
 		return err
 	}
@@ -96,35 +96,35 @@ func Eval(obj Object, env *Env) Object {
 	case error, int, bool:
 		return obj
 	case Symbol:
-		return EvalSym(obj, env)
+		return evalSym(obj, env)
 	case []Object:
-		return EvalList(obj, env)
+		return evalList(obj, env)
 	case Void:
 		return Void{}
 	}
 	return nil
 }
-func EvalSym(sym Symbol, env *Env) Object {
+func evalSym(sym Symbol, env *Env) Object {
 	if obj, ok := (*env)[sym]; ok {
 		return obj
 	}
 	return nil
 }
-func EvalList(list []Object, env *Env) Object {
+func evalList(list []Object, env *Env) Object {
 	first := list[0]
 	switch first := first.(type) {
 	case Symbol:
 		switch first {
 		case "+", "-", "*", "/", "<", ">", "=", "!=":
-			return EvalBinop(list, env)
+			return evalBinop(list, env)
 		case "define":
-			return EvalDefine(list, env)
+			return evalDefine(list, env)
 		case "if":
-			return EvalIf(list, env)
+			return evalIf(list, env)
 		case "lambda":
-			return EvalFnDefine(list, env)
+			return evalFnDefine(list, env)
 		default:
-			return EvalFnCall(first, list, env)
+			return evalFnCall(first, list, env)
 		}
 	}
 	var result []Object
@@ -139,7 +139,7 @@ func EvalList(list []Object, env *Env) Object {
 	}
 	return result
 }
-func EvalBinop(list []Object, env *Env) Object {
+func evalBinop(list []Object, env *Env) Object {
 	if len(list) < 3 {
 		return fmt.Errorf("invalid number of arguments")
 	}
@@ -213,7 +213,7 @@ func EvalBinop(list []Object, env *Env) Object {
 	return fmt.Errorf("operator must be symbol")
 }
 
-func EvalDefine(list []Object, env *Env) Object {
+func evalDefine(list []Object, env *Env) Object {
 	if len(list) != 3 {
 		return fmt.Errorf("invalid number of arguments supplied to define")
 	}
@@ -223,7 +223,7 @@ func EvalDefine(list []Object, env *Env) Object {
 	return Void{}
 }
 
-func EvalIf(list []Object, env *Env) Object {
+func evalIf(list []Object, env *Env) Object {
 	if len(list) != 4 {
 		return fmt.Errorf("invalid number of arguments for if")
 	}
@@ -236,7 +236,7 @@ func EvalIf(list []Object, env *Env) Object {
 	return Eval(list[3], env)
 }
 
-func EvalFnDefine(list []Object, env *Env) Object {
+func evalFnDefine(list []Object, env *Env) Object {
 	parameters, ok := list[1].([]Object)
 	if !ok {
 		return fmt.Errorf("invalid function parameters expected list")
@@ -256,7 +256,7 @@ func EvalFnDefine(list []Object, env *Env) Object {
 	return fmt.Errorf("expected list for lambda body")
 }
 
-func EvalFnCall(fnname Symbol, list []Object, env *Env) Object {
+func evalFnCall(fnname Symbol, list []Object, env *Env) Object {
 	lambda, ok := (*env)[fnname].(Lambda)
 	if !ok {
 		return fmt.Errorf("no such function named %v", fnname)
