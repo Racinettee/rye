@@ -257,14 +257,15 @@ func evalFnDefine(list []Object, env *Env) Object {
 }
 
 func evalFnCall(fnname Symbol, list []Object, env *Env) Object {
-	lambda, ok := (*env)[fnname].(Lambda)
-	if !ok {
-		return fmt.Errorf("no such function named %v", fnname)
+	switch val := (*env)[fnname].(type) {
+	case Lambda:
+		nestedEnv := env.Clone()
+		for i, param := range val.args {
+			res := Eval(list[i+1], env)
+			nestedEnv[param] = res
+		}
+		return Eval(val.body, &nestedEnv)
+	default:
+		return Eval(val, env)
 	}
-	nestedEnv := env.Clone()
-	for i, param := range lambda.args {
-		res := Eval(list[i+1], env)
-		nestedEnv[param] = res
-	}
-	return Eval(lambda.body, &nestedEnv)
 }
