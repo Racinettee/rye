@@ -7,12 +7,12 @@ import (
 )
 
 func TestTokenize(t *testing.T) {
-	tokens := Tokenize("(+ 1 2)")
-	assert.Equal(t, tokens[0].Type, TokenLParen)
+	tokens := tokenize("(+ 1 2)")
+	assert.Equal(t, tokens[0].Type, tokenLParen)
 	//assert.Equal(t, tokens[1], Token{"+", TokenSymbol})
-	assert.Equal(t, tokens[2], Token{1, TokenInt})
-	assert.Equal(t, tokens[3], Token{2, TokenInt})
-	assert.Equal(t, tokens[4].Type, TokenRParen)
+	assert.Equal(t, tokens[2], token{1, tokenInt})
+	assert.Equal(t, tokens[3], token{2, tokenInt})
+	assert.Equal(t, tokens[4].Type, tokenRParen)
 }
 
 func TestEval(t *testing.T) {
