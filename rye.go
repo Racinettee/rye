@@ -83,13 +83,6 @@ func Parse(program string) Object {
 	return object
 }
 
-func (env Env) Lookup(sym Symbol) Object {
-	if obj, ok := env[sym]; ok {
-		return obj
-	}
-	return nil
-}
-
 func (env Env) Clone() Env {
 	result := make(Env)
 	for k, v := range env {
@@ -111,8 +104,11 @@ func Eval(obj Object, env *Env) Object {
 	}
 	return nil
 }
-func EvalSym(obj Symbol, env *Env) Object {
-	return env.Lookup(obj)
+func EvalSym(sym Symbol, env *Env) Object {
+	if obj, ok := (*env)[sym]; ok {
+		return obj
+	}
+	return nil
 }
 func EvalList(list []Object, env *Env) Object {
 	first := list[0]
