@@ -149,7 +149,7 @@ func EvalBinop(list []Object, env *Env) Object {
 	}
 	switch operator := list[0]; operator.(type) {
 	case Symbol:
-		switch operator {
+		switch operator.(Symbol) {
 		case "+":
 			sum := 0
 			for _, obj := range list[1:] {
@@ -202,7 +202,7 @@ func EvalBinop(list []Object, env *Env) Object {
 		if !(ok1 && ok2) {
 			return fmt.Errorf("error evaluating comparitor expected int")
 		}
-		switch operator {
+		switch operator.(Symbol) {
 		case "<":
 			return left < right
 		case ">":
