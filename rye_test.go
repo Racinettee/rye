@@ -21,3 +21,12 @@ func TestEval(t *testing.T) {
 	result := Eval(obj, &env)
 	assert.Equal(t, result.(int), 6)
 }
+
+func TestLambda(t *testing.T) {
+	env := make(Env)
+	obj := Parse("(define func (lambda (x) (+ x 1)))")
+	Eval(obj, &env)
+	obj = Parse("(func 1)")
+	result := Eval(obj, &env)
+	assert.Equal(t, result.(int), 2)
+}

@@ -9,6 +9,18 @@ import (
 )
 
 type TokenType byte
+type Symbol string
+type Object interface{}
+type Void struct{}
+type Env map[Symbol]Object
+type Lambda struct {
+	args []Symbol
+	body []Object
+}
+type Token struct {
+	Symbol interface{}
+	Type   TokenType
+}
 
 const (
 	TokenInt TokenType = iota
@@ -17,15 +29,8 @@ const (
 	TokenRParen
 )
 
-type Token struct {
-	Symbol interface{}
-	Type   TokenType
-}
-type Symbol string
-
 func Tokenize(program string) []Token {
-	program = strings.ReplaceAll(strings.ReplaceAll(program, "(", " ( "), ")", " ) ")
-	words := strings.Fields(program)
+	words := strings.Fields(strings.ReplaceAll(strings.ReplaceAll(program, "(", " ( "), ")", " ) "))
 	var result []Token
 	for _, word := range words {
 		switch word {
@@ -34,8 +39,7 @@ func Tokenize(program string) []Token {
 		case ")":
 			result = append(result, Token{")", TokenRParen})
 		default:
-			i, err := strconv.Atoi(word)
-			if err != nil {
+			if i, err := strconv.Atoi(word); err != nil {
 				result = append(result, Token{Symbol(word), TokenSymbol})
 			} else {
 				result = append(result, Token{i, TokenInt})
@@ -45,15 +49,13 @@ func Tokenize(program string) []Token {
 	return result
 }
 
-type Object interface{}
-
-func ParseTokens(tokens generics.Queue[Token]) ([]Object, error) {
+func ParseTokens(tokens *generics.Queue[Token]) ([]Object, error) {
 	var result generics.List[Object]
 	token := tokens.Pop()
 	if token.Type != TokenLParen {
 		return result, fmt.Errorf("expected ( but found %+v", token)
 	}
-	for len(tokens) != 0 {
+	for len(*tokens) != 0 {
 		token = tokens.Front()
 		switch token.Type {
 		case TokenInt, TokenSymbol:
@@ -66,24 +68,23 @@ func ParseTokens(tokens generics.Queue[Token]) ([]Object, error) {
 			}
 			result.Push(subList)
 		case TokenRParen:
+			tokens.Pop()
 			return result, nil
 		}
 	}
 	return result, nil
 }
 func Parse(program string) Object {
-	object, err := ParseTokens(Tokenize(program))
+	tokens := generics.Queue[Token](Tokenize(program))
+	object, err := ParseTokens(&tokens)
 	if err != nil {
 		return err
 	}
 	return object
 }
 
-type Env map[Symbol]Object
-
 func (env Env) Lookup(sym Symbol) Object {
-	obj, ok := env[sym]
-	if ok {
+	if obj, ok := env[sym]; ok {
 		return obj
 	}
 	return nil
@@ -97,21 +98,14 @@ func (env Env) Clone() Env {
 	return result
 }
 
-type Lambda struct {
-	args []Symbol
-	body []Object
-}
-type Void struct{}
-
 func Eval(obj Object, env *Env) Object {
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case error, int, bool:
 		return obj
 	case Symbol:
-		sym, _ := obj.(Symbol)
-		return EvalSym(sym, nil)
+		return EvalSym(obj, env)
 	case []Object:
-		return EvalList(obj.([]Object), env)
+		return EvalList(obj, env)
 	case Void:
 		return Void{}
 	}
@@ -122,9 +116,9 @@ func EvalSym(obj Symbol, env *Env) Object {
 }
 func EvalList(list []Object, env *Env) Object {
 	first := list[0]
-	switch first.(type) {
+	switch first := first.(type) {
 	case Symbol:
-		switch first.(Symbol) {
+		switch first {
 		case "+", "-", "*", "/", "<", ">", "=", "!=":
 			return EvalBinop(list, env)
 		case "define":
@@ -134,7 +128,7 @@ func EvalList(list []Object, env *Env) Object {
 		case "lambda":
 			return EvalFnDefine(list, env)
 		default:
-			return EvalFnCall(first.(Symbol), list, env)
+			return EvalFnCall(first, list, env)
 		}
 	}
 	var result []Object
@@ -153,10 +147,9 @@ func EvalBinop(list []Object, env *Env) Object {
 	if len(list) < 3 {
 		return fmt.Errorf("invalid number of arguments")
 	}
-	operator := list[0]
-	switch operator.(type) {
+	switch operator := list[0]; operator.(type) {
 	case Symbol:
-		switch operator.(Symbol) {
+		switch operator {
 		case "+":
 			sum := 0
 			for _, obj := range list[1:] {
@@ -203,33 +196,20 @@ func EvalBinop(list []Object, env *Env) Object {
 				divisor /= res
 			}
 			return divisor
+		}
+		left, ok1 := Eval(list[1], env).(int)
+		right, ok2 := Eval(list[2], env).(int)
+		if !(ok1 && ok2) {
+			return fmt.Errorf("error evaluating comparitor expected int")
+		}
+		switch operator {
 		case "<":
-			left, ok1 := Eval(list[1], env).(int)
-			right, ok2 := Eval(list[2], env).(int)
-			if !(ok1 && ok2) {
-				return fmt.Errorf("error evaluating < expected int")
-			}
 			return left < right
 		case ">":
-			left, ok1 := Eval(list[1], env).(int)
-			right, ok2 := Eval(list[2], env).(int)
-			if !(ok1 && ok2) {
-				return fmt.Errorf("error evaluating > expected int")
-			}
 			return left > right
 		case "=":
-			left, ok1 := Eval(list[1], env).(int)
-			right, ok2 := Eval(list[2], env).(int)
-			if !(ok1 && ok2) {
-				return fmt.Errorf("error evaluating = expected int")
-			}
 			return left == right
 		case "!=":
-			left, ok1 := Eval(list[1], env).(int)
-			right, ok2 := Eval(list[2], env).(int)
-			if !(ok1 && ok2) {
-				return fmt.Errorf("error evaluating != expected int")
-			}
 			return left != right
 		}
 	default:
@@ -254,8 +234,7 @@ func EvalIf(list []Object, env *Env) Object {
 	cond, ok := Eval(list[1], env).(bool)
 	if !ok {
 		return fmt.Errorf("conditional does not evaluate to bool")
-	}
-	if cond {
+	} else if cond {
 		return Eval(list[2], env)
 	}
 	return Eval(list[3], env)
@@ -274,12 +253,11 @@ func EvalFnDefine(list []Object, env *Env) Object {
 			return fmt.Errorf("arguments for lamba must all be symbol")
 		}
 	}
-	body, ok := list[2].([]Object)
-	if !ok {
+	if body, ok := list[2].([]Object); ok {
+		return Lambda{params, body}
 		// not sure this is correct
-		return fmt.Errorf("expected list for lambda body")
 	}
-	return Lambda{params, body}
+	return fmt.Errorf("expected list for lambda body")
 }
 
 func EvalFnCall(fnname Symbol, list []Object, env *Env) Object {
