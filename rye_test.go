@@ -1,6 +1,7 @@
 package rye
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,4 +46,15 @@ func TestDef(t *testing.T) {
 
 	res = Eval(Parse("(* 20 hello)"), &env)
 	assert.Equal(t, res.(int), 20)
+}
+
+func TestUserCallable(t *testing.T) {
+	testFn := func(env Env, objA ...Object) Object {
+		fmt.Printf("You gave me: %v\n", objA)
+		fmt.Printf("Whats in the env: %v\n", env)
+		return nil
+	}
+	env := make(Env)
+	env.AddCallable("testFn", testFn, "a", "b", "c", "d")
+	Eval(Parse("(testFn 5 6 7 8 9 10)"), &env)
 }

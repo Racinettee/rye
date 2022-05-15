@@ -16,6 +16,10 @@ type Lambda struct {
 	args []Symbol
 	body []Object
 }
+type UserCallable struct {
+	Args []Symbol
+	Fn   func(Env, ...Object) Object
+}
 type tokenType byte
 type token struct {
 	Symbol interface{}
@@ -74,6 +78,8 @@ func parseTokens(tokens *generics.Queue[token]) ([]Object, error) {
 	}
 	return result, nil
 }
+
+// Call Parse on a string to get back an object that can be evaluated
 func Parse(program string) Object {
 	tokens := generics.Queue[token](tokenize(program))
 	object, err := parseTokens(&tokens)
@@ -83,6 +89,7 @@ func Parse(program string) Object {
 	return object
 }
 
+// Clones an environment
 func (env Env) Clone() Env {
 	result := make(Env)
 	for k, v := range env {
@@ -91,6 +98,16 @@ func (env Env) Clone() Env {
 	return result
 }
 
+// Add a user provided function to an environment. the args argument contains
+// strings that will be in the environment the user function will recieve
+func (env *Env) AddCallable(name string, fn func(Env, ...Object) Object, args ...Symbol) {
+	(*env)[Symbol(name)] = UserCallable{
+		Args: args,
+		Fn:   fn,
+	}
+}
+
+// Evaluate an object
 func Eval(obj Object, env *Env) Object {
 	switch obj := obj.(type) {
 	case error, int, bool:
@@ -265,6 +282,15 @@ func evalFnCall(fnname Symbol, list []Object, env *Env) Object {
 			nestedEnv[param] = res
 		}
 		return Eval(val.body, &nestedEnv)
+	case UserCallable:
+		nestedEnv := env.Clone()
+		var args []Object
+		for i, param := range val.Args {
+			res := Eval(list[i+1], env)
+			args = append(args, res)
+			nestedEnv[param] = res
+		}
+		return val.Fn(nestedEnv, args...)
 	default:
 		return Eval(val, env)
 	}
